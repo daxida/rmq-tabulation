@@ -1,6 +1,5 @@
-use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
-
+use rand::{Rng, SeedableRng};
 
 #[inline(always)]
 fn flog2(v: usize) -> usize {
@@ -11,67 +10,45 @@ trait Rmq {
     fn rmq(&self, i: usize, j: usize) -> usize;
 }
 
-struct Sparse<'a> {
-    t: &'a [usize],
-    n: usize,
+struct Sparse {
+    lgn: usize,
     table: Vec<usize>, // convert this to a slice
 }
 
-#[inline(always)]
-fn min_by_t(t: &[usize], l: usize, r: usize) -> usize {
-    if t[l] < t[r] {
-        l
-    } else {
-        r
-    }
-}
-
-impl<'a> Sparse<'a> {
-    fn new(t: &'a [usize]) -> Self {
+impl Sparse {
+    fn new(t: &[usize]) -> Self {
         let n = t.len();
         let lgn = flog2(n);
 
-        let mut table = vec![0; n * lgn];
-        for i in 0..n {
-            table[i * lgn] = i;
+        let mut table: Vec<usize> = vec![0; (lgn + 1) * n];
+
+        for j in 0..n {
+            table[j * (lgn + 1)] = t[j];
         }
 
-        let mut j = 1;
-        while (1 << j) <= n {
-            for i in 0..=n - (1 << j) {
-                let idx_l = i * lgn + j;
-                let idx_r = (i + (1 << (j - 1))) * lgn + j - 1;
-                let l = table[idx_l - 1];
-                let r = table[idx_r];
-                table[idx_l] = min_by_t(t, l, r);
+        // Build the sparse table
+        for i in 1..=lgn {
+            for j in 0..=(n - (1 << i)) {
+                table[j * (lgn + 1) + i] = std::cmp::min(
+                    table[j * (lgn + 1) + i - 1],
+                    table[(j + (1 << (i - 1))) * (lgn + 1) + i - 1],
+                );
             }
-            j += 1;
         }
 
-        Sparse { t, n, table }
+        Sparse { lgn, table }
     }
 }
 
-impl <'a> Rmq for Sparse<'a> {
-    fn rmq(&self, mut i: usize, j: usize) -> usize {
+impl Rmq for Sparse {
+    fn rmq(&self, i: usize, j: usize) -> usize {
         debug_assert!(i < j);
-        i += 1;
-    
-        if i < j {
-            let lgn = flog2(self.n);
-            let k = flog2(j - i + 1);
-    
-            // Calculate indices a and b for the two halves of the range.
-            let idx_l = i * lgn + k;
-            let idx_r = (j - (1 << k) + 1) * lgn + k;
-            let l = self.table[idx_l];
-            let r = self.table[idx_r];
-    
-            min_by_t(self.t, l, r)
-        } else {
-            // i == j since i <= j
-            i
-        }  
+
+        let k = flog2(j - i + 1);
+        std::cmp::min(
+            self.table[i * (self.lgn + 1) + k],
+            self.table[(j + 1 - (1 << k)) * (self.lgn + 1) + k],
+        )
     }
 }
 
@@ -81,18 +58,20 @@ fn create_random_ary(ary_size: usize, max_ary: usize) -> Vec<usize> {
 }
 
 fn main() {
-    let ary_size = 100;
-    let max_ary = 1000;
+    let ary_size = 10;
+    let max_ary = 100;
     let ary = create_random_ary(ary_size, max_ary);
     let sparse = Sparse::new(&ary);
 
     for i in 0..ary_size {
-        for j in i+1..ary_size {
+        for j in i + 1..ary_size {
             let res = sparse.rmq(i, j);
-            let min_naive = (i+1..=j).map(|k| ary[k]).min().unwrap();
-            assert_eq!(ary[res], min_naive)
+            let min_naive = (i..=j).map(|k| ary[k]).min().unwrap();
+            assert_eq!(res, min_naive)
         }
     }
+
+    println!("ALL OK!");
 }
 
 // mod tests {
