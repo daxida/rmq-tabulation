@@ -1,8 +1,8 @@
-mod rmq;
+mod range;
 
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use rmq::{Rmq, Sparse};
+use range::{Rmq, SparseT, RMQ, Optimal};
 
 fn create_random_ary(ary_size: usize, max_ary: usize) -> Vec<usize> {
     let mut rng = StdRng::from_entropy();
@@ -10,38 +10,21 @@ fn create_random_ary(ary_size: usize, max_ary: usize) -> Vec<usize> {
 }
 
 fn main() {
-    let ary_size = 10;
-    let max_ary = 100;
+    let ary_size = 50;
+    let max_ary = 1000;
     let ary = create_random_ary(ary_size, max_ary);
-    let sparse = Sparse::new(&ary);
+    let sparse = SparseT::new(&ary);
+    let opt = Optimal::new(&ary);
 
     for i in 0..ary_size {
         for j in i + 1..ary_size {
             let res = sparse.rmq(i, j);
             let min_naive = (i..=j).map(|k| ary[k]).min().unwrap();
-            assert_eq!(res, min_naive)
+            let res_opt = ary[opt.rmq(i, j+1).unwrap_or(0)];
+            assert_eq!(res, min_naive);
+            assert_eq!(res_opt, min_naive);
         }
     }
 
     println!("ALL OK!");
 }
-
-// mod tests {
-//     use crate::*;
-
-//     #[test]
-//     fn test_correct() {
-//         let ary_size = 100;
-//         let max_ary = 1000;
-//         let ary = create_random_ary(ary_size, max_ary);
-//         let sparse = Sparse::new(&ary);
-
-//         for i in 0..ary_size {
-//             for j in i+1..ary_size {
-//                 let res = sparse.rmq(i, j);
-//                 let min_naive = (i+1..=j).map(|k| ary[k]).min().unwrap();
-//                 assert_eq!(ary[res], min_naive)
-//             }
-//         }
-//     }
-// }
