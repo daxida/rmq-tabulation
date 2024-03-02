@@ -52,99 +52,27 @@ impl Rmq for SparseT {
     }
 }
 
-
-
-////////////////////////////////////////
-
 use ouroboros::self_referencing;
 use std::cmp;
 
-pub mod matrix {
-    fn flat_index(i: usize, j: usize, n: usize) -> usize {
-        i * n + j
-    }
+mod matrix;
+use matrix::{Matrix,UTTable};
 
-    /// Table for looking up any (i,j), 0 <= i, j < n
-    #[derive(Debug, Clone)]
-    pub struct Matrix {
-        n: usize,
-        table: Vec<usize>
-    }
-
-    impl Matrix {
-        pub fn new(n: usize) -> Matrix {
-            let table = vec![0; n * n];
-            Matrix { n, table }
-        }
-    }
-
-    impl std::ops::Index<(usize, usize)> for Matrix {
-        type Output = usize;
-        fn index(&self, index: (usize, usize)) -> &Self::Output {
-            let (i, j) = index;
-            assert!(i < self.n);
-            assert!(j < self.n);
-            &self.table[flat_index(i, j, self.n)]
-        }
-    }
-    
-    impl std::ops::IndexMut<(usize, usize)> for Matrix {
-        fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
-            let (i, j) = index;
-            assert!(i < self.n);
-            assert!(j < self.n);
-            &mut self.table[flat_index(i, j, self.n)]
-        }
-    }
-}
-
-/// Upper-triangular tables
-pub mod triag {
-    #[inline]
-    fn flat_index(i: usize, j: usize, n: usize) -> usize {
-        let k = n - i - 1;
-        k * (k + 1) / 2 + j - i - 1
-    }
-    
-    /// Table for looking up at [i,j) (j > i) intervals.
-    #[derive(Debug,Clone)]
-    pub struct UTTable {
-        n: usize,
-        table: Vec<usize>,
-    }
-    
-    impl UTTable {
-        pub fn new(n: usize) -> UTTable {
-            let table: Vec<usize> = vec![0; n * (n + 1) / 2];
-            UTTable { n, table }
-        }
-    }
-    
-    impl std::ops::Index<(usize, usize)> for UTTable {
-        type Output = usize;
-        fn index(&self, index: (usize, usize)) -> &Self::Output {
-            let (i, j) = index;
-            assert!(i < self.n);
-            assert!(i < j && j <= self.n);
-            &self.table[flat_index(i, j, self.n)]
-        }
-    }
-    
-    impl std::ops::IndexMut<(usize, usize)> for UTTable {
-        fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
-            let (i, j) = index;
-            assert!(i < self.n);
-            assert!(i < j && j <= self.n);
-            &mut self.table[flat_index(i, j, self.n)]
-        }
+fn lift_op<T: Copy>(f: impl Fn(T, T)->T) -> impl Fn(Option<T>, Option<T>)->Option<T> {
+    move |a, b|         
+    match (a, b) {
+        (None, None) => None,
+        (Some(_), None) => a,
+        (None, Some(_)) => b,
+        (Some(a), Some(b)) => Some(f(a,b)),
     }
 }
 
 /// Fully tabulating the answer to all queries with
 /// <O(n²),O(1)> running times
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TabulatedQuery {
-    tbl: triag::UTTable,
+    tbl: UTTable,
 }
 
 impl RMQ for TabulatedQuery {
@@ -157,12 +85,10 @@ impl RMQ for TabulatedQuery {
 #[derive(Clone, Copy, Debug)]
 pub struct Point(usize, usize);
 impl Point {
-    #[inline]
     pub fn new(i: usize, x: &[usize]) -> Point {
         Point(i, x[i])
     }
     /// Get Some(Point(i,x[i])) if the index is valid or None if not
-    #[inline]
     pub fn get(i: Option<usize>, x: &[usize]) -> Option<Point> {
         Some(Point(i?, *x.get(i?)?))
     }
@@ -175,16 +101,9 @@ impl cmp::PartialEq for Point {
 }
 impl cmp::Eq for Point {}
 impl cmp::Ord for Point {
-        fn cmp(&self, other: &Point) -> cmp::Ordering {
-        if *self == *other {
-            cmp::Ordering::Equal
-        }
-        else if self.1 < other.1 || (self.1 == other.1 && self.0 < other.0) {
-            cmp::Ordering::Less
-        }
-        else {
-            cmp::Ordering::Greater
-        }
+    fn cmp(&self, other: &Point) -> cmp::Ordering {
+        self.1.cmp(&other.1)
+            .then_with(|| self.0.cmp(&other.0))
     }
 }
 impl cmp::PartialOrd for Point {
@@ -192,11 +111,12 @@ impl cmp::PartialOrd for Point {
         Some(self.cmp(other))
     }
 }
+// End point
 
 impl TabulatedQuery {
     #[allow(dead_code)] // only used in tests right now
     pub fn new(x: &[usize]) -> Self {
-        let mut tbl = triag::UTTable::new(x.len());
+        let mut tbl = UTTable::new(x.len());
         for i in 0..x.len() {
             tbl[(i, i + 1)] = i;
         }
@@ -204,8 +124,8 @@ impl TabulatedQuery {
             for j in i + 2..x.len() + 1 {
                 // Dynamic programming:
                 // Min val in [i,j) is either min in [i,j-1) or [j-1,j)
-                let left = Point::new(tbl[(i, j - 1)], &x);
-                let current = Point::new(j - 1, &x);
+                let left = Point::new(tbl[(i, j - 1)], x);
+                let current = Point::new(j - 1, x);
                 tbl[(i, j)] = cmp::min(left, current).0
             }
         }
@@ -213,10 +133,9 @@ impl TabulatedQuery {
     }
 }
 
-
 /// Build a table of Ballot numbers B_pq from p=q=0 to p=q=b.
-fn tabulate_ballot_numbers(b: usize) -> matrix::Matrix {
-    let mut ballot = matrix::Matrix::new(b + 1);
+fn tabulate_ballot_numbers(b: usize) -> Matrix {
+    let mut ballot = Matrix::new(b + 1);
     for q in 0..=b {
         ballot[(0, q)] = 1
     }
@@ -228,12 +147,11 @@ fn tabulate_ballot_numbers(b: usize) -> matrix::Matrix {
     ballot
 }
 
-
 /// Compute the block type number of a block.
 /// The b argument is the true block size, but it can differ from block.len() for the last
 /// block. When we process the last block, we fake push the missing elements, putting them
 /// lower in the Cartesian tree than the real ones, so we still get the right RMQ.
-fn block_type(block: &[usize], b: usize, stack: &mut [i64], ballot: &matrix::Matrix) -> usize {
+fn block_type(block: &[usize], b: usize, stack: &mut [i64], ballot: &Matrix) -> usize {
     let mut num = 0;
     let mut top = 0;
     stack[top] = i64::MIN; // As close to -infinity as we get with this type...
@@ -257,8 +175,9 @@ fn block_type(block: &[usize], b: usize, stack: &mut [i64], ballot: &matrix::Mat
         stack[top] = signed_v;
     }
 
-    return num;
+    num
 }
+
 /// Compute the block types for all blocks in x and compute the tables for the
 /// blocks we observe.
 fn tabulate_blocks(x: &[usize], b: usize) -> (Vec<usize>, Vec<Option<TabulatedQuery>>) {
@@ -283,15 +202,16 @@ fn tabulate_blocks(x: &[usize], b: usize) -> (Vec<usize>, Vec<Option<TabulatedQu
 
         let bt = block_type(block, b, &mut stack, &ballot);
         block_types[i] = bt;
-        if let None = block_tables[bt] {
+        if block_tables[bt].is_none() {
             block_tables[bt] = Some(TabulatedQuery::new(block));
         }
     }
-    return (block_types, block_tables);
+    (block_types, block_tables)
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct BlockSize(pub usize);
+
 #[derive(Clone, Copy, Debug)]
 pub struct BlockIdx(pub usize);
 
@@ -300,30 +220,9 @@ pub struct BlockIdx(pub usize);
 pub mod powers {
     /// Type for powers of two, 2^k. Contains k, but wrapped in
     /// a type so we don't confuse log-space with linear space.
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
     pub struct Pow(pub usize);
-    
-    impl std::cmp::PartialEq for Pow {
-        #[inline]
-        fn eq(&self, other: &Pow) -> bool {
-            self.0 == other.0
-        }
-    }
-    
-    impl std::cmp::PartialOrd for Pow {
-        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-            let Pow(i) = *self;
-            let Pow(j) = *other;
-            Some(i.cmp(&j))
-        }
-    }
-    
-    impl std::fmt::Display for Pow {
-        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            write!(f, "2^{}", self.0)
-        }
-    }
-    
+
     impl Pow {
         /// for a power Pow(k) get 2^k.
         #[inline]
@@ -424,15 +323,12 @@ pub mod powers {
                 for val in row {
                     let _ = write!(f, "{} ", val);
                 }
-                let _ = write!(f, "\n");
+                let _ = writeln!(f);
             }
             Ok(())
         }
     }
 }
-
-
-
 
 pub fn block_size(n: usize) -> BlockSize {
     // The block size is log2(n) rounded up.
@@ -454,7 +350,6 @@ impl std::cmp::PartialOrd for BlockIdx {
         Some(i.cmp(&j))
     }
 }
-
 
 pub fn round_down(i: usize, bs: BlockSize) -> (BlockIdx, usize) {
     let BlockSize(bs) = bs;
@@ -486,7 +381,7 @@ pub fn reduce_array(x: &[usize], block_size: BlockSize) -> (Vec<usize>, Vec<usiz
         let begin = block * bs;
         let end = begin + bs;
         let Point(pos, val) = 
-            Point::new(naive_rmq(&x, begin, end).unwrap(), &x);
+            Point::new(naive_rmq(x, begin, end).unwrap(), x);
         indices.push(pos);
         values.push(val);
     }
@@ -520,8 +415,8 @@ impl<'a> Sparse<'a> {
         for k in 1..logn {
             for i in 0..(n - powers::Pow(k - 1).value()) {
                 // Interval [i,i+2^k) = [i,i+2^{k-1}) [i+2^{k-1},(i+2^{k-1})+2^{k-1})
-                let left = Point::new(tbl[(i, powers::Pow(k - 1))], &x);
-                let right = Point::new(tbl[(i + powers::Pow(k - 1).value(), powers::Pow(k - 1))], &x);
+                let left = Point::new(tbl[(i, powers::Pow(k - 1))], x);
+                let right = Point::new(tbl[(i + powers::Pow(k - 1).value(), powers::Pow(k - 1))], x);
                 tbl[(i, powers::Pow(k))] = cmp::min(left, right).0;
             }
         }
@@ -543,7 +438,6 @@ impl<'a> RMQ for Sparse<'a> {
     }
 }
 
-
 #[self_referencing]
 struct _Optimal<'a> {
     // Original data
@@ -555,7 +449,7 @@ struct _Optimal<'a> {
     reduced_idx: Vec<usize>,
     #[borrows(reduced_vals)]
     #[covariant]
-    sparse: Sparse<'this>,
+    sparse: Sparse<'this>, // self referencing here
 
     // Block types and tables
     block_types: Vec<usize>,
@@ -605,36 +499,24 @@ impl<'a> Optimal<'a> {
     }
 
     fn block_rmq(&self, i: usize, j: usize) -> Option<Point> {
-        if i < j {
-            // Get misc values and tables we need...
-            let BlockSize(bs) = self.block_size();
-            let block_index = i / bs; // The index in the list of blocks
-            let block_begin = block_index * bs; // The index the block starts at in x
-
-            let block_types = self.0.borrow_block_types();
-            let block_tables = self.0.borrow_block_tables();
-
-            // Get the table for this block by looking up the block type and then the
-            // table from the block type.
-            let tbl = block_tables[block_types[block_index]].as_ref().unwrap();
-
-            // Get RMQ and adjust the index back up, so it is relative to the start of the block.
-            let rmq_idx = tbl.rmq(i - block_begin, j - block_begin)? + block_begin;
-            Some(Point::new(rmq_idx, self.x()))
-        } else {
-            // j <= i so not a valid interval.
-            None
+        if j <= i {
+            return None;
         }
-    }
-}
 
-fn lift_op<T: Copy>(f: impl Fn(T, T)->T) -> impl Fn(Option<T>, Option<T>)->Option<T> {
-    move |a, b|         
-    match (a, b) {
-        (None, None) => None,
-        (Some(_), None) => a,
-        (None, Some(_)) => b,
-        (Some(a), Some(b)) => Some(f(a,b)),
+        let BlockSize(bs) = self.block_size();
+        let block_index = i / bs; // The index in the list of blocks
+        let block_begin = block_index * bs; // The index the block starts at in x
+
+        let block_types = self.0.borrow_block_types();
+        let block_tables = self.0.borrow_block_tables();
+
+        // Get the table for this block by looking up the block type and then the
+        // table from the block type.
+        let tbl = block_tables[block_types[block_index]].as_ref().unwrap();
+
+        // Get RMQ and adjust the index back up, so it is relative to the start of the block.
+        let rmq_idx = tbl.rmq(i - block_begin, j - block_begin)? + block_begin;
+        Some(Point::new(rmq_idx, self.x()))
     }
 }
 

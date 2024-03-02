@@ -1,8 +1,7 @@
-mod range;
-
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use range::{Rmq, SparseT, RMQ, Optimal};
+
+use lib::{Rmq, SparseT, RMQ, Optimal};
 
 fn create_random_ary(ary_size: usize, max_ary: usize) -> Vec<usize> {
     let mut rng = StdRng::from_entropy();
