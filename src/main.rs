@@ -1,48 +1,41 @@
-use lib::{Optimal, Rmq, SparseT, RMQ};
+use lib::{Optimal, Sparse, RMQ};
 
-fn compare_methods(ary: &Vec<usize>) {
+fn compare_methods(ary: &[usize]) {
     let ary_size = ary.len();
-    let sparse = SparseT::new(&ary);
-    let opt = Optimal::new(&ary);
+    let sparse = Sparse::new(ary);
+    let opt = Optimal::new(ary);
 
     for i in 0..ary_size {
         for j in i + 1..ary_size {
-            let res = sparse.rmq(i, j);
-            let min_naive = (i..=j).map(|k| ary[k]).min().unwrap();
-            let res_opt = opt.rmq(i, j + 1).unwrap_or(0);
+            let res = sparse.rmq(i, j).unwrap();
+            let min_naive = (i..j).map(|k| ary[k]).min().unwrap();
+            let res_opt = opt.rmq(i, j).unwrap_or(0);
             assert_eq!(res, min_naive);
+            // assert_eq!(res_sparse_opt, min_naive);
             assert_eq!(res_opt, min_naive);
+            // println!("{} {} {} {}", i, j, res, res_opt);
         }
     }
 }
 
 fn main() {
     let ary: Vec<usize> = vec![
-        339,
-        458,
-        261,
-        251, // <- min idx 3
-        389, //
-        908,
-        375, // <- min idx 6
-        888,
-        697,
-        676, //
-        169, // <- min idx 10
-        607,
-        912,
-        160,
-        281, //
-        188,
-        890,
-        681,
-        51,  // <- min idx 18
-        947, //
-        162, // <- min idx 20
-        891,
-        705,
-        755,
-        877,
+        251, // 0  <- min idx 0
+        339, // 1
+        458, // 2
+        261, // 3  BLOCK
+        389, // 4
+        375, // 5  <- min idx 5
+        908, // 6
+        888, // 7  BLOCK
+        697, // 8
+        676, // 9
+        169, // 10 <- min idx 10
+        607, // 11 BLOCK
+        912, // 12
+        160, // 13
+        281, // 14
+        44,  // 15 BLOCK <- min idx 15
     ];
 
     compare_methods(&ary);
@@ -80,8 +73,24 @@ mod tests {
 
     #[test]
     fn test_random_three() {
-        let ary_size = 500;
+        let ary_size = 250;
         let max_ary = 10;
+        let ary = create_random_ary(ary_size, max_ary);
+        compare_methods(&ary)
+    }
+
+    #[test]
+    fn test_random_four() {
+        let ary_size = 1 << 4;
+        let max_ary = 10;
+        let ary = create_random_ary(ary_size, max_ary);
+        compare_methods(&ary)
+    }
+
+    #[test]
+    fn test_random_five() {
+        let ary_size = 1 << 5;
+        let max_ary = 5;
         let ary = create_random_ary(ary_size, max_ary);
         compare_methods(&ary)
     }

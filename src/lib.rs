@@ -3,61 +3,57 @@ fn flog2(v: usize) -> usize {
     v.ilog2() as usize
 }
 
-pub trait Rmq {
-    fn rmq(&self, i: usize, j: usize) -> usize;
-}
-
 pub trait RMQ {
     fn rmq(&self, i: usize, j: usize) -> Option<usize>;
 }
 
-pub struct SparseT {
+pub struct Sparse {
     lgn: usize,
     table: Vec<usize>,
 }
 
-impl SparseT {
+impl Sparse {
     pub fn new(array: &[usize]) -> Self {
         let n = array.len();
-        let lgn = flog2(n);
-        let mut table: Vec<usize> = vec![0; (lgn + 1) * n];
+        let lgn = flog2(n) + 1;
+        let mut table: Vec<usize> = vec![0; lgn * n];
 
         for j in 0..n {
-            table[j * (lgn + 1)] = array[j];
+            table[j * lgn] = array[j];
         }
 
-        for i in 1..=lgn {
+        for i in 1..lgn {
             for j in 0..=(n - (1 << i)) {
-                table[j * (lgn + 1) + i] = std::cmp::min(
-                    table[j * (lgn + 1) + i - 1],
-                    table[(j + (1 << (i - 1))) * (lgn + 1) + i - 1],
+                table[j * lgn + i] = std::cmp::min(
+                    table[j * lgn + i - 1],
+                    table[(j + (1 << (i - 1))) * lgn + i - 1],
                 );
             }
         }
 
-        SparseT { lgn, table }
+        Sparse { lgn, table }
     }
 }
 
-impl Rmq for SparseT {
-    fn rmq(&self, i: usize, j: usize) -> usize {
-        debug_assert!(i < j);
+impl RMQ for Sparse {
+    fn rmq(&self, i: usize, j: usize) -> Option<usize> {
+        if i >= j {
+            return None;
+        }
 
-        let k = flog2(j - i + 1);
-        std::cmp::min(
-            self.table[i * (self.lgn + 1) + k],
-            self.table[(j + 1 - (1 << k)) * (self.lgn + 1) + k],
-        )
+        let k = flog2(j - i);
+        Some(std::cmp::min(
+            self.table[i * self.lgn + k],
+            self.table[(j - (1 << k)) * self.lgn + k],
+        ))
     }
 }
-
-use ouroboros::self_referencing;
 
 mod matrix;
 use matrix::Matrix;
 
 /// An index i together with its value x[i].
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Point(usize, usize);
 impl Point {
     pub fn new(i: usize, x: &[usize]) -> Point {
@@ -239,57 +235,6 @@ pub fn round_up(i: usize, bs: BlockSize) -> (BlockIdx, usize) {
     (BlockIdx(r), r * bs)
 }
 
-mod sparse {
-    use crate::powers;
-    use crate::Point;
-    use crate::RMQ;
-    use powers::{Pow, Powers};
-
-    pub struct Sparse<'a> {
-        x: &'a [usize],
-        tbl: Powers,
-    }
-
-    impl<'a> Sparse<'a> {
-        pub fn new(x: &'a [usize]) -> Self {
-            let n = x.len();
-            let mut tbl = Powers::new(n);
-            let Pow(logn) = powers::log_table_size(n);
-
-            // Base case: intervals [i,i+1) = [i,i+2^0).
-            for i in 0..n {
-                tbl[(i, Pow(0))] = i;
-            }
-
-            for k in 1..logn {
-                for i in 0..(n - Pow(k - 1).value()) {
-                    // Interval [i,i+2^k) = [i,i+2^{k-1}) [i+2^{k-1},(i+2^{k-1})+2^{k-1})
-                    let left = Point::new(tbl[(i, Pow(k - 1))], x);
-                    let right = Point::new(tbl[(i + Pow(k - 1).value(), Pow(k - 1))], x);
-                    tbl[(i, Pow(k))] = std::cmp::min(left, right).0;
-                }
-            }
-
-            Sparse { x, tbl }
-        }
-    }
-
-    impl<'a> RMQ for Sparse<'a> {
-        fn rmq(&self, i: usize, j: usize) -> Option<usize> {
-            if i < j {
-                let (idx_i, idx_j) = powers::power_index(i, j);
-                let pi = Point::new(self.tbl[idx_i], self.x);
-                let pj = Point::new(self.tbl[idx_j], self.x);
-                Some(std::cmp::min(pi, pj).0)
-            } else {
-                None
-            }
-        }
-    }
-}
-
-use sparse::Sparse;
-
 /// Reduce an array x to the smallest value in each block (of size block_size)
 /// and the index in the original array that this minimal value sits at.
 pub fn reduce_array(x: &[usize], block_size: BlockSize) -> (Vec<usize>, Vec<usize>) {
@@ -308,6 +253,7 @@ pub fn reduce_array(x: &[usize], block_size: BlockSize) -> (Vec<usize>, Vec<usiz
         indices.push(pos);
         values.push(val);
     }
+
     (indices, values)
 }
 
@@ -387,26 +333,15 @@ fn tabulate_blocks(x: &[usize], b: usize) -> (Vec<usize>, Vec<Option<TabulatedQu
     (block_types, block_tables)
 }
 
-#[self_referencing]
-struct _Optimal<'a> {
+pub struct Optimal<'a> {
     x: &'a [usize],
-
-    // Reduced table
     block_size: BlockSize,
-    reduced_vals: Vec<usize>,
-    reduced_idx: Vec<usize>,
-    #[borrows(reduced_vals)]
-    #[covariant]
-    sparse: Sparse<'this>, // self referencing here
-
-    // Block types and tables
+    sparse: Sparse,
     block_types: Vec<usize>,
     block_tables: Vec<Option<TabulatedQuery>>,
 }
-pub struct Optimal<'a>(_Optimal<'a>);
 
 impl<'a> Optimal<'a> {
-    #[allow(dead_code)] // only used in tests right now
     pub fn new(x: &'a [usize]) -> Self {
         let n = x.len();
         let BlockSize(b) = block_size(n);
@@ -415,56 +350,35 @@ impl<'a> Optimal<'a> {
         let b = std::cmp::max(4, b / 4); // I don't want too small blocks, so minimum is 4
         let block_size = BlockSize(b);
 
-        let (reduced_idx, reduced_vals) = reduce_array(x, block_size);
+        let (_, reduced_vals) = reduce_array(x, block_size);
         let (block_types, block_tables) = tabulate_blocks(x, b);
 
-        let _optimal = _OptimalBuilder {
+        Optimal {
             x,
             block_size,
-            reduced_vals,
-            reduced_idx,
-            sparse_builder: |red_vals: &Vec<usize>| Sparse::new(red_vals),
+            sparse: Sparse::new(&reduced_vals),
             block_types,
             block_tables,
         }
-        .build();
-        Optimal(_optimal)
     }
 
-    // accessors -- not public
-    fn get_x(&self) -> &'a [usize] {
-        self.0.borrow_x()
-    }
-    fn block_size(&self) -> BlockSize {
-        *self.0.borrow_block_size()
-    }
-    fn reduced_idx(&self) -> &[usize] {
-        self.0.borrow_reduced_idx()
-    }
-    fn sparse_rmq(&self, bi: BlockIdx, bj: BlockIdx) -> Option<usize> {
-        let (BlockIdx(i), BlockIdx(j)) = (bi, bj);
-        Some(self.reduced_idx()[self.0.borrow_sparse().rmq(i, j)?])
-    }
-
-    fn block_rmq(&self, i: usize, j: usize) -> Option<Point> {
+    fn block_rmq(&self, i: usize, j: usize) -> Option<usize> {
         if j <= i {
             return None;
         }
 
-        let BlockSize(bs) = self.block_size();
+        let BlockSize(bs) = self.block_size;
         let block_index = i / bs; // The index in the list of blocks
         let block_begin = block_index * bs; // The index the block starts at in x
 
-        let block_types = self.0.borrow_block_types();
-        let block_tables = self.0.borrow_block_tables();
-
         // Get the table for this block by looking up the block type and then the
         // table from the block type.
-        let tbl = block_tables[block_types[block_index]].as_ref().unwrap();
+        let btype = self.block_types[block_index];
+        let tbl = self.block_tables[btype].as_ref().unwrap();
 
         // Get RMQ and adjust the index back up, so it is relative to the start of the block.
         let rmq_idx = tbl.rmq(i - block_begin, j - block_begin)? + block_begin;
-        Some(Point::new(rmq_idx, self.get_x()))
+        Some(self.x[rmq_idx])
     }
 }
 
@@ -479,7 +393,7 @@ fn lift_op<T: Copy>(f: impl Fn(T, T) -> T) -> impl Fn(Option<T>, Option<T>) -> O
 
 impl<'a> RMQ for Optimal<'a> {
     fn rmq(&self, i: usize, j: usize) -> Option<usize> {
-        let BlockSize(bs) = self.block_size();
+        let BlockSize(bs) = self.block_size;
         // The block indices are not the same for the small tables and the
         // sparse table. For the sparse table we have to round up for i, but
         // to get the block i is in, we need to round down.
@@ -489,12 +403,13 @@ impl<'a> RMQ for Optimal<'a> {
 
         if bi < bj {
             let p1 = self.block_rmq(i, ii);
-            let p2 = Point::get(self.sparse_rmq(sparse_bi, bj), self.get_x());
+            let (BlockIdx(sparse_bi), BlockIdx(bj)) = (sparse_bi, bj);
+            let p2 = self.sparse.rmq(sparse_bi, bj);
             let p3 = self.block_rmq(jj, j);
             let min = lift_op(std::cmp::min);
-            Some(min(min(p1, p2), p3)?.0)
+            Some(min(min(p1, p2), p3)?)
         } else {
-            Some(self.block_rmq(i, j)?.0)
+            Some(self.block_rmq(i, j)?)
         }
     }
 }
