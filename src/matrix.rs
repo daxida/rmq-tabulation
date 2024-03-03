@@ -1,7 +1,7 @@
 /// Matrix -- just indexing with i,j
 pub struct Matrix {
     n: usize,
-    table: Vec<usize>
+    table: Vec<usize>,
 }
 
 impl Matrix {
@@ -13,7 +13,7 @@ impl Matrix {
     fn flat_index(&self, i: usize, j: usize) -> usize {
         debug_assert!(i < self.n && j < self.n);
         i * self.n + j
-    }    
+    }
 }
 
 impl std::ops::Index<(usize, usize)> for Matrix {
