@@ -1,9 +1,9 @@
-use lib::{Optimal, Sparse, RMQ};
+use lib::{Cartesian, Sparse, Rmq};
 
 fn compare_methods(ary: &[usize]) {
     let ary_size = ary.len();
     let sparse = Sparse::new(ary);
-    let opt = Optimal::new(ary);
+    let opt = Cartesian::new(ary);
 
     for i in 0..ary_size {
         for j in i + 1..ary_size {

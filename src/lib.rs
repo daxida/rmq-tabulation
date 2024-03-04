@@ -9,7 +9,7 @@ pub fn log2_down(j: usize) -> usize {
     (usize::BITS - j.leading_zeros() - 1) as usize
 }
 
-pub trait RMQ {
+pub trait Rmq {
     fn rmq(&self, i: usize, j: usize) -> Option<usize>;
 }
 
@@ -41,7 +41,7 @@ impl Sparse {
     }
 }
 
-impl RMQ for Sparse {
+impl Rmq for Sparse {
     fn rmq(&self, i: usize, j: usize) -> Option<usize> {
         if i >= j {
             return None;
@@ -132,7 +132,7 @@ pub struct TabulatedQuery {
     tbl: UTTable,
 }
 
-impl RMQ for TabulatedQuery {
+impl Rmq for TabulatedQuery {
     fn rmq(&self, i: usize, j: usize) -> Option<usize> {
         if i < j {
             Some(self.tbl[(i, j)])
@@ -280,7 +280,7 @@ fn tabulate_blocks(x: &[usize], b: usize) -> (Vec<usize>, Vec<Option<TabulatedQu
     (block_types, block_tables)
 }
 
-pub struct Optimal<'a> {
+pub struct Cartesian<'a> {
     x: &'a [usize],
     block_size: BlockSize,
     sparse: Sparse,
@@ -288,7 +288,7 @@ pub struct Optimal<'a> {
     block_tables: Vec<Option<TabulatedQuery>>,
 }
 
-impl<'a> Optimal<'a> {
+impl<'a> Cartesian<'a> {
     pub fn new(x: &'a [usize]) -> Self {
         let n = x.len();
         let BlockSize(b) = block_size(n);
@@ -300,7 +300,7 @@ impl<'a> Optimal<'a> {
         let reduced_vals = reduce_array(x, block_size);
         let (block_types, block_tables) = tabulate_blocks(x, b);
 
-        Optimal {
+        Cartesian {
             x,
             block_size,
             sparse: Sparse::new(&reduced_vals),
@@ -338,7 +338,7 @@ fn lift_op<T: Copy>(f: impl Fn(T, T) -> T) -> impl Fn(Option<T>, Option<T>) -> O
     }
 }
 
-impl<'a> RMQ for Optimal<'a> {
+impl<'a> Rmq for Cartesian<'a> {
     fn rmq(&self, i: usize, j: usize) -> Option<usize> {
         let BlockSize(bs) = self.block_size;
         let bi = BlockIdx(i / bs);
