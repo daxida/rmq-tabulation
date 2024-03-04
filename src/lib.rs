@@ -55,12 +55,78 @@ impl RMQ for Sparse {
     }
 }
 
-mod matrix;
-use matrix::Matrix;
-use matrix::UTTable;
+/// Matrix -- just indexing with i,j
+pub struct Matrix {
+    n: usize,
+    table: Vec<usize>,
+}
 
-/// Fully tabulating the answer to all queries with
-/// <O(n²),O(1)> running times
+impl Matrix {
+    pub fn new(n: usize) -> Matrix {
+        let table = vec![0; n * n];
+        Matrix { n, table }
+    }
+
+    fn flat_index(&self, i: usize, j: usize) -> usize {
+        debug_assert!(i < self.n && j < self.n);
+        i * self.n + j
+    }
+}
+
+impl std::ops::Index<(usize, usize)> for Matrix {
+    type Output = usize;
+    fn index(&self, index: (usize, usize)) -> &Self::Output {
+        let (i, j) = index;
+        &self.table[self.flat_index(i, j)]
+    }
+}
+
+impl std::ops::IndexMut<(usize, usize)> for Matrix {
+    fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
+        let (i, j) = index;
+        let flat_idx = self.flat_index(i, j);
+        &mut self.table[flat_idx]
+    }
+}
+
+/// Upper triangular table: Table for looking up at [i,j) (j > i) intervals.
+#[derive(Clone)]
+pub struct UTTable {
+    n: usize,
+    table: Vec<usize>,
+}
+
+impl UTTable {
+    pub fn new(n: usize) -> UTTable {
+        let table: Vec<usize> = vec![0; n * (n + 1) / 2];
+        UTTable { n, table }
+    }
+
+    fn flat_index(&self, i: usize, j: usize) -> usize {
+        debug_assert!(i < self.n);
+        debug_assert!(i < j && j <= self.n);
+        let k = self.n - i - 1;
+        k * (k + 1) / 2 + j - i - 1
+    }
+}
+
+impl std::ops::Index<(usize, usize)> for UTTable {
+    type Output = usize;
+    fn index(&self, index: (usize, usize)) -> &Self::Output {
+        let (i, j) = index;
+        &self.table[self.flat_index(i, j)]
+    }
+}
+
+impl std::ops::IndexMut<(usize, usize)> for UTTable {
+    fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
+        let (i, j) = index;
+        let flat_idx = self.flat_index(i, j);
+        &mut self.table[flat_idx]
+    }
+}
+
+/// Fully tabulating the answer to all queries with <O(n²),O(1)>
 #[derive(Clone)]
 pub struct TabulatedQuery {
     tbl: UTTable,
@@ -84,8 +150,7 @@ impl TabulatedQuery {
         }
         for i in 0..x.len() - 1 {
             for j in i + 2..x.len() + 1 {
-                // Dynamic programming:
-                // Min val in [i,j) is either min in [i,j-1) or [j-1,j)
+                // DP: min val in [i,j) is either min in [i,j-1) or [j-1,j)
                 tbl[(i, j)] = if x[tbl[(i, j - 1)]] <= x[j - 1] {
                     tbl[(i, j - 1)]
                 } else {
@@ -139,6 +204,7 @@ pub fn reduce_array(x: &[usize], block_size: BlockSize) -> Vec<usize> {
 }
 
 /// Build a table of Ballot numbers B_pq from p=q=0 to p=q=b.
+/// B_bb is the total number of binary trees with b leaves.
 fn tabulate_ballot_numbers(b: usize) -> Matrix {
     let mut ballot = Matrix::new(b + 1);
     for q in 0..=b {
@@ -275,11 +341,11 @@ fn lift_op<T: Copy>(f: impl Fn(T, T) -> T) -> impl Fn(Option<T>, Option<T>) -> O
 impl<'a> RMQ for Optimal<'a> {
     fn rmq(&self, i: usize, j: usize) -> Option<usize> {
         let BlockSize(bs) = self.block_size;
-        // The block indices are not the same for the small tables and the
-        // sparse table. For the sparse table we have to round up for i, but
-        // to get the block i is in, we need to round down.
         let bi = BlockIdx(i / bs);
+        // The block indices are not the same for the small tables and the sparse table.
+        // For the sparse table we have to round up for i ...
         let (sparse_bi, ii) = round_up(i, BlockSize(bs));
+        // ... but to get the block i is in, we need to round down.
         let (bj, jj) = round_down(j, BlockSize(bs));
 
         if bi < bj {
