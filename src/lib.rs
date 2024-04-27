@@ -3,12 +3,6 @@ fn flog2(v: usize) -> usize {
     v.ilog2() as usize
 }
 
-// Try this too
-pub fn log2_down(j: usize) -> usize {
-    assert!(j != 0);
-    (usize::BITS - j.leading_zeros() - 1) as usize
-}
-
 pub trait Rmq {
     fn rmq(&self, i: usize, j: usize) -> Option<usize>;
 }
@@ -55,7 +49,7 @@ impl Rmq for Sparse {
     }
 }
 
-/// Matrix -- just indexing with i,j
+/// 2D Array class
 pub struct Matrix {
     n: usize,
     table: Vec<usize>,
@@ -271,7 +265,6 @@ fn tabulate_blocks(x: &[usize], b: usize) -> (Vec<usize>, Vec<Option<TabulatedQu
         let block = &x[begin..end];
 
         let bt = block_type(block, b, &mut stack, &ballot);
-        dbg!(bt);
         block_types[i] = bt;
         if block_tables[bt].is_none() {
             block_tables[bt] = Some(TabulatedQuery::new(block));
@@ -360,3 +353,6 @@ impl<'a> Rmq for Cartesian<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

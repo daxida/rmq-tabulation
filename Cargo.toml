@@ -2,13 +2,10 @@
 name = "rmq-cartesian"
 version = "0.1.0"
 edition = "2021"
-default-run = "rmq-cartesian"
 
 [lib]
 name = "lib"
 path = "src/lib.rs"
 
 [dependencies]
-ouroboros = "0.18.3"
 rand = "0.8.5"
-rmq = { git = "https://github.com/daxida/rmq", branch = "main" }
