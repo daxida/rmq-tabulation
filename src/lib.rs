@@ -181,20 +181,9 @@ pub fn round_up(i: usize, bs: BlockSize) -> (BlockIdx, usize) {
 /// and the index in the original array that this minimal value sits at.
 pub fn reduce_array(x: &[usize], block_size: BlockSize) -> Vec<usize> {
     let BlockSize(bs) = block_size;
-    let mut values: Vec<usize> = Vec::new();
-    let no_blocks = x.len() / bs;
-    for block in 0..no_blocks {
-        let begin = block * bs;
-        let end = begin + bs;
-        // dbg!(begin, end);
-        // naive rmq
-        let y = &x[begin..end];
-        let min_val = y.iter().min().unwrap();
-        let pos = begin + y.iter().position(|a| a == min_val).unwrap();
-        values.push(x[pos]);
-    }
-
-    values
+    x.chunks(bs)
+        .map(|block| *block.iter().min().unwrap())
+        .collect()
 }
 
 /// Build a table of Ballot numbers B_pq from p=q=0 to p=q=b.

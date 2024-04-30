@@ -1,4 +1,4 @@
-use super::{Tabulation, Sparse, Rmq};
+use super::{Rmq, Sparse, Tabulation};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
