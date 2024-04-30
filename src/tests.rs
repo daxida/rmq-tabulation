@@ -1,11 +1,11 @@
-use super::{Cartesian, Sparse, Rmq};
+use super::{Tabulation, Sparse, Rmq};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
 fn compare_methods(ary: &[usize]) {
     let ary_size = ary.len();
     let sparse = Sparse::new(ary);
-    let opt = Cartesian::new(ary);
+    let opt = Tabulation::new(ary);
 
     for i in 0..ary_size {
         for j in i + 1..ary_size {

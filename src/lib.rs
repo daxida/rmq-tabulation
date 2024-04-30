@@ -273,7 +273,7 @@ fn tabulate_blocks(x: &[usize], b: usize) -> (Vec<usize>, Vec<Option<TabulatedQu
     (block_types, block_tables)
 }
 
-pub struct Cartesian<'a> {
+pub struct Tabulation<'a> {
     x: &'a [usize],
     block_size: BlockSize,
     sparse: Sparse,
@@ -281,7 +281,7 @@ pub struct Cartesian<'a> {
     block_tables: Vec<Option<TabulatedQuery>>,
 }
 
-impl<'a> Cartesian<'a> {
+impl<'a> Tabulation<'a> {
     pub fn new(x: &'a [usize]) -> Self {
         let n = x.len();
         let BlockSize(b) = block_size(n);
@@ -293,7 +293,7 @@ impl<'a> Cartesian<'a> {
         let reduced_vals = reduce_array(x, block_size);
         let (block_types, block_tables) = tabulate_blocks(x, b);
 
-        Cartesian {
+        Tabulation {
             x,
             block_size,
             sparse: Sparse::new(&reduced_vals),
@@ -331,7 +331,7 @@ fn lift_op<T: Copy>(f: impl Fn(T, T) -> T) -> impl Fn(Option<T>, Option<T>) -> O
     }
 }
 
-impl<'a> Rmq for Cartesian<'a> {
+impl<'a> Rmq for Tabulation<'a> {
     fn rmq(&self, i: usize, j: usize) -> Option<usize> {
         let BlockSize(bs) = self.block_size;
         let bi = BlockIdx(i / bs);

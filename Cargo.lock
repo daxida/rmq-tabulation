@@ -62,7 +62,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rmq-cartesian"
+name = "rmq-tabulation"
 version = "0.1.0"
 dependencies = [
  "rand",

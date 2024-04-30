@@ -1,10 +1,10 @@
 [package]
-name = "rmq-cartesian"
+name = "rmq-tabulation"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "lib"
+name = "rmq"
 path = "src/lib.rs"
 
 [dependencies]
