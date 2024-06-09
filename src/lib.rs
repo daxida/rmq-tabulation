@@ -85,7 +85,7 @@ impl std::ops::IndexMut<(usize, usize)> for Matrix {
 
 /// Upper triangular table: Table for looking up at [i,j) (j > i) intervals.
 #[derive(Clone)]
-pub struct UTTable {
+struct UTTable {
     n: usize,
     table: Vec<usize>,
 }
