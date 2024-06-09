@@ -50,7 +50,7 @@ impl Rmq for Sparse {
 }
 
 /// 2D Array class
-pub struct Matrix {
+struct Matrix {
     n: usize,
     table: Vec<usize>,
 }
@@ -122,7 +122,7 @@ impl std::ops::IndexMut<(usize, usize)> for UTTable {
 
 /// Fully tabulating the answer to all queries with <O(n²),O(1)>
 #[derive(Clone)]
-pub struct TabulatedQuery {
+struct TabulatedQuery {
     tbl: UTTable,
 }
 
@@ -157,21 +157,21 @@ impl TabulatedQuery {
 }
 
 #[derive(Clone, Copy)]
-pub struct BlockSize(pub usize);
+struct BlockSize(pub usize);
 
 #[derive(PartialEq, PartialOrd)]
-pub struct BlockIdx(pub usize);
+struct BlockIdx(pub usize);
 
-pub fn block_size(n: usize) -> BlockSize {
+fn block_size(n: usize) -> BlockSize {
     BlockSize(flog2(n) + 1)
 }
 
-pub fn round_down(i: usize, bs: BlockSize) -> (BlockIdx, usize) {
+fn round_down(i: usize, bs: BlockSize) -> (BlockIdx, usize) {
     let BlockSize(bs) = bs;
     let r = i / bs;
     (BlockIdx(r), r * bs)
 }
-pub fn round_up(i: usize, bs: BlockSize) -> (BlockIdx, usize) {
+fn round_up(i: usize, bs: BlockSize) -> (BlockIdx, usize) {
     let BlockSize(bs) = bs;
     let r = (i + bs - 1) / bs;
     (BlockIdx(r), r * bs)
@@ -179,7 +179,7 @@ pub fn round_up(i: usize, bs: BlockSize) -> (BlockIdx, usize) {
 
 /// Reduce an array x to the smallest value in each block (of size block_size)
 /// and the index in the original array that this minimal value sits at.
-pub fn reduce_array(x: &[usize], block_size: BlockSize) -> Vec<usize> {
+fn reduce_array(x: &[usize], block_size: BlockSize) -> Vec<usize> {
     let BlockSize(bs) = block_size;
     x.chunks(bs)
         .map(|block| *block.iter().min().unwrap())

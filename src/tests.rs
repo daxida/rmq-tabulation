@@ -5,15 +5,15 @@ use rand::{Rng, SeedableRng};
 fn compare_methods(ary: &[usize]) {
     let ary_size = ary.len();
     let sparse = Sparse::new(ary);
-    let opt = Tabulation::new(ary);
+    let tabulation = Tabulation::new(ary);
 
     for i in 0..ary_size {
         for j in i + 1..ary_size {
-            let res = sparse.rmq(i, j).unwrap();
-            let min_naive = (i..j).map(|k| ary[k]).min().unwrap();
-            let res_opt = opt.rmq(i, j).unwrap_or(0);
-            assert_eq!(res, min_naive);
-            assert_eq!(res_opt, min_naive);
+            let res_naive = (i..j).map(|k| ary[k]).min().unwrap();
+            let res_sparse = sparse.rmq(i, j).unwrap();
+            let res_tabulation = tabulation.rmq(i, j).unwrap_or(0);
+            assert_eq!(res_naive, res_sparse);
+            assert_eq!(res_naive, res_tabulation);
         }
     }
 }
