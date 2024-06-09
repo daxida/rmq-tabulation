@@ -1,11 +1,19 @@
 [package]
 name = "rmq-tabulation"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
+license = "GPL-3.0"
+readme = "README.md"
+description = "Rmq using extensive tabulation"
+keywords = [
+    "rmq",
+    "sparse-table",
+    "tabulation",
+]
 
 [lib]
 name = "rmq"
 path = "src/lib.rs"
 
-[dependencies]
+[dev-dependencies]
 rand = "0.8.5"
